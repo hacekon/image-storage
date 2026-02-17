@@ -154,3 +154,51 @@ Toolkit::test(static function (): void {
 
 	cleanupImages();
 });
+
+Toolkit::test(static function (): void {
+	$storage = createStorage();
+
+	// Test associative array with named parameters
+	$image = $storage->fromIdentifier([
+		'path' => 'files/49/kitty.jpg',
+		'size' => '100x100',
+		'flag' => 'fit',
+		'quality' => 85,
+	]);
+
+	Assert::type(\Contributte\ImageStorage\Image::class, $image);
+	Assert::contains('kitty.100x100.fit.q85.jpg', $image->createLink());
+
+	cleanupImages();
+});
+
+Toolkit::test(static function (): void {
+	$storage = createStorage();
+
+	// Test associative array with minimal parameters (only path)
+	$image = $storage->fromIdentifier([
+		'path' => 'files/49/kitty.jpg',
+	]);
+
+	Assert::type(\Contributte\ImageStorage\Image::class, $image);
+	Assert::equal('data/files/49/kitty.jpg', $image->createLink());
+
+	cleanupImages();
+});
+
+Toolkit::test(static function (): void {
+	$storage = createStorage();
+
+	// Test backward compatibility with positional array
+	$image = $storage->fromIdentifier([
+		'files/49/kitty.jpg',
+		'100x100',
+		'fill',
+		90,
+	]);
+
+	Assert::type(\Contributte\ImageStorage\Image::class, $image);
+	Assert::contains('kitty.100x100.fill.q90.jpg', $image->createLink());
+
+	cleanupImages();
+});

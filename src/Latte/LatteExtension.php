@@ -50,7 +50,7 @@ class LatteExtension extends Extension
 		$args = $tag->parser->parseArguments();
 
 		return new AuxiliaryNode(
-			fn (PrintContext $context) => $context->format('$_img = $imageStorage->fromIdentifier(%node); echo \' src="\' . $basePath . "/" . $_img->createLink() . \'"\';', $args)
+			fn (PrintContext $context) => $context->format('echo $imageStorage->createImageAttributes(%node, $basePath);', $args)
 		);
 	}
 
@@ -59,7 +59,7 @@ class LatteExtension extends Extension
 		$args = $tag->parser->parseArguments();
 
 		return new AuxiliaryNode(
-			fn (PrintContext $context) => $context->format('$_img = $imageStorage->fromIdentifier(%node); echo \' src="\' . $baseUrl . "/" . $_img->createLink() . \'"\';', $args)
+			fn (PrintContext $context) => $context->format('echo $imageStorage->createImageAttributes(%node, $baseUrl);', $args)
 		);
 	}
 

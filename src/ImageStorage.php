@@ -155,19 +155,62 @@ class ImageStorage
 
 	public function fromIdentifier(mixed $args): Image
 	{
+
 		if (!is_array($args)) {
 			$args = [$args];
 		}
 
-		$identifier = $args[0];
-		$qualityOverride = $args[3] ?? null;
-		$flag = $args[2] ?? $this->default_transform;
+		// DEBUG: uncomment to see what arguments are received
+		// dump('fromIdentifier received:', $args);
+
+		// Unwrap if arguments are wrapped in array (Latte parser behavior)
+		if (count($args) === 1 && is_array($args[0])) {
+			// Check if it's an associative array with 'path' key or has any string keys
+			$firstElement = $args[0];
+			if (isset($firstElement['path']) || (is_array($firstElement) && array_keys($firstElement) !== range(0, count($firstElement) - 1))) {
+				$args = $args[0];
+			}
+		}
+
+		// Support both associative array with named keys and positional array
+		$isAssociative = array_keys($args) !== range(0, count($args) - 1);
+
+		if ($isAssociative) {
+			$identifier = $args['path'] ?? $args[0] ?? null;
+			$size = $args['size'] ?? null;
+			$flag = $args['flag'] ?? $this->default_transform;
+			$qualityOverride = $args['quality'] ?? null;
+			$convertToWebp = $args['convertToWebp'] ?? true; // Default: convert to WEBP
+
+			// Ensure identifier is a string, not an array
+			if (is_array($identifier)) {
+				$identifier = $identifier[0] ?? null;
+			}
+
+			// Convert to positional array format for backward compatibility
+			$args = [$identifier, $size, $flag, $qualityOverride, $convertToWebp];
+		} else {
+			$identifier = $args[0];
+			$size = $args[1] ?? null;
+			$flag = $args[2] ?? $this->default_transform;
+			$qualityOverride = $args[3] ?? null;
+			$convertToWebp = $args[4] ?? true; // Default: convert to WEBP
+
+			// Ensure identifier is a string, not an array
+			if (is_array($identifier)) {
+				$identifier = $identifier[0] ?? null;
+			}
+
+			// Standardize to consistent positional array format
+			$args = [$identifier, $size, $flag, $qualityOverride, $convertToWebp];
+		}
 
 		$orig_file = implode('/', [$this->orig_path, $identifier]);
 		$data_file = implode('/', [$this->data_path, $identifier]);
 		$isNoImage = false;
 
-		if (count($args) === 1) {
+		// Return original image if no size is specified
+		if (count($args) === 1 || empty($args[1])) {
 			if (!file_exists($orig_file) || !$identifier) {
 				return $this->getNoImage(true);
 			}
@@ -181,11 +224,32 @@ class ImageStorage
 		}
 
 		preg_match('/(\d+)?x(\d+)?(crop(\d+)x(\d+)x(\d+)x(\d+))?/', $args[1], $matches);
+
+		// Validate size format
+		if (!isset($matches[1]) || !isset($matches[2]) || empty($matches[1]) || empty($matches[2])) {
+			$invalidSize = $args[1] ?? 'null';
+			throw new ImageResizeException(
+				"Invalid image size format: '{$invalidSize}'\n" .
+				"Expected format: 'WIDTHxHEIGHT' (e.g., '800x600')\n\n" .
+				"Correct usage:\n" .
+				"  n:img=\"\$image->getPath(), '800x600'\"\n" .
+				"  n:img=\"\$image->getPath(), ['400', '800', '1200']\"\n" .
+				"  n:img=\"\$image->getPath(), ['1200x537', '800', '400'], 'fill'\"\n" .
+				"  {imgLink \$image->getPath(), '800x600', 'fit'}\n\n" .
+				"Note: In srcset arrays, you can use width-only (e.g., '400') - height is auto-calculated.\n" .
+				"      Original image must exist at: {$this->orig_path}/{$identifier}"
+			);
+		}
+
 		$size = [(int) $matches[1], (int) $matches[2]];
 		$crop = [];
 
 		if (!$size[0] || !$size[1]) {
-			throw new ImageResizeException('Error resizing image. You have to provide both width and height.');
+			throw new ImageResizeException(
+				"Error resizing image. You have to provide both width and height.\n\n" .
+				"Correct format: 'WIDTHxHEIGHT' (e.g., '800x600')\n" .
+				"Received: '{$args[1]}' which parsed as width={$size[0]}, height={$size[1]}"
+			);
 		}
 
 		if (count($matches) === 8) {
@@ -209,6 +273,14 @@ class ImageStorage
 		$script->setSize($size);
 		$script->setCrop($crop);
 		$script->setFlag($flag);
+
+		// Convert to WEBP if enabled and source is JPG/PNG
+		if ($convertToWebp && !$isNoImage) {
+			$originalExt = strtolower($script->extension);
+			if (in_array($originalExt, ['jpg', 'jpeg', 'png'], true)) {
+				$script->setExtension('webp');
+			}
+		}
 
 		// Get quality: use override if provided, otherwise get format-specific default
 		$quality = $qualityOverride ?? $this->getQualityForFormat($script->extension);
@@ -306,6 +378,159 @@ class ImageStorage
 	public function setFriendlyUrl(bool $friendly_url = true): void
 	{
 		$this->friendly_url = $friendly_url;
+	}
+
+	/**
+	 * Generate srcset attribute string for multiple image sizes.
+	 *
+	 * @param string $identifier Base image identifier (path)
+	 * @param array<string> $sizes Array of sizes in format 'WIDTHxHEIGHT' or just 'WIDTH' (e.g., ['400x300', '800', '1200x900'])
+	 * @param string $pathPrefix Path prefix (usually $basePath or $baseUrl)
+	 * @param string|null $flag Resize flag (fit, fill, exact, etc.)
+	 * @param int|null $quality Quality override
+	 * @param bool $convertToWebp Convert JPG/PNG to WEBP format (default: true)
+	 * @return string Srcset attribute value (e.g., "img-400x300.webp 400w, img-800x600.webp 800w")
+	 */
+	public function createSrcSet(string $identifier, array $sizes, string $pathPrefix, ?string $flag = null, ?int $quality = null, bool $convertToWebp = true): string
+	{
+		if (empty($sizes)) {
+			return '';
+		}
+
+		$flag = $flag ?? $this->default_transform;
+		$srcsetParts = [];
+
+		// Normalize sizes (calculate height for width-only values)
+		$normalizedSizes = $this->normalizeSrcsetSizes($identifier, $sizes);
+
+		foreach ($normalizedSizes as $size) {
+			$image = $this->fromIdentifier([$identifier, $size, $flag, $quality, $convertToWebp]);
+			$width = (int) explode('x', $size)[0];
+			$srcsetParts[] = $pathPrefix . '/' . $image->createLink() . ' ' . $width . 'w';
+		}
+
+		return implode(', ', $srcsetParts);
+	}
+
+	/**
+	 * Normalize a single size - calculate height for width-only value based on original image aspect ratio.
+	 *
+	 * @param string $identifier Image identifier (path)
+	 * @param string $size Size in format 'WIDTHxHEIGHT' or just 'WIDTH'
+	 * @return string Normalized size with both width and height (e.g., '800x600')
+	 */
+	private function normalizeSize(string $identifier, string $size): string
+	{
+		// If size contains 'x', it's already in WIDTHxHEIGHT format
+		if (strpos($size, 'x') !== false) {
+			return $size;
+		}
+
+		// Size is width-only, need to calculate height
+		$width = (int) $size;
+		$originalPath = implode('/', [$this->orig_path, $identifier]);
+
+		// Get aspect ratio from original image
+		if (file_exists($originalPath)) {
+			$imageInfo = @getimagesize($originalPath);
+			if ($imageInfo && $imageInfo[0] > 0 && $imageInfo[1] > 0) {
+				$aspectRatio = $imageInfo[0] / $imageInfo[1]; // width / height
+			} else {
+				$aspectRatio = 1; // Fallback to square if can't read
+			}
+		} else {
+			$aspectRatio = 1; // Fallback to square if file doesn't exist
+		}
+
+		// Calculate height maintaining aspect ratio
+		$height = (int) round($width / $aspectRatio);
+		return $width . 'x' . $height;
+	}
+
+	/**
+	 * Normalize srcset sizes - calculate height for width-only values based on original image aspect ratio.
+	 *
+	 * @param string $identifier Image identifier (path)
+	 * @param array<string> $sizes Array of sizes (e.g., ['400x300', '800', '1200'])
+	 * @return array<string> Normalized sizes with both width and height (e.g., ['400x300', '800x600', '1200x900'])
+	 */
+	private function normalizeSrcsetSizes(string $identifier, array $sizes): array
+	{
+		$normalized = [];
+		foreach ($sizes as $size) {
+			$normalized[] = $this->normalizeSize($identifier, $size);
+		}
+
+		return $normalized;
+	}
+
+	/**
+	 * Generate HTML image attributes (src and optionally srcset) for Latte templates.
+	 *
+	 * @param mixed $args Arguments from Latte template
+	 * @param string $pathPrefix Path prefix (usually $basePath or $baseUrl)
+	 * @return string HTML attributes string (e.g., ' src="..." srcset="..."')
+	 */
+	public function createImageAttributes(mixed $args, string $pathPrefix): string
+	{
+		if (!is_array($args)) {
+			$args = [$args];
+		}
+
+		// Unwrap if arguments are wrapped in array (Latte parser behavior)
+		if (count($args) === 1 && is_array($args[0]) && isset($args[0]['path'])) {
+			$args = $args[0];
+		}
+
+		// Positional arguments: new format
+		// Args: [path, srcset|size, flag, quality, convertToWebp]
+		$identifier = $args[0] ?? null;
+		$sizeOrSrcset = $args[1] ?? null;
+		$flag = $args[2] ?? null;
+		$quality = $args[3] ?? null;
+		$convertToWebp = $args[4] ?? true; // Default: convert to WEBP
+
+		// Determine if $args[1] is srcset (array) or single size (string)
+		if (is_array($sizeOrSrcset)) {
+			$srcsetSizes = $sizeOrSrcset;
+			$size = null;
+		} else {
+			$srcsetSizes = null;
+			$size = $sizeOrSrcset;
+		}
+
+		// If no identifier, return empty
+		if (!$identifier) {
+			return ' src=""';
+		}
+
+		$output = '';
+
+		// Generate main src attribute
+		if (is_array($srcsetSizes) && !empty($srcsetSizes)) {
+			// Use the largest size for src (last in array)
+			$mainSize = $size ?? end($srcsetSizes);
+			// Normalize size (calculate height if only width is provided)
+			$mainSize = $this->normalizeSize($identifier, $mainSize);
+			$mainImage = $this->fromIdentifier([$identifier, $mainSize, $flag, $quality, $convertToWebp]);
+			$output .= ' src="' . $pathPrefix . '/' . $mainImage->createLink() . '"';
+
+			// Generate srcset
+			$srcset = $this->createSrcSet($identifier, $srcsetSizes, $pathPrefix, $flag, $quality, $convertToWebp);
+			if ($srcset) {
+				$output .= ' srcset="' . $srcset . '"';
+			}
+		} elseif ($size) {
+			// Single size - only src
+			$image = $this->fromIdentifier([$identifier, $size, $flag, $quality, $convertToWebp]);
+			$output .= ' src="' . $pathPrefix . '/' . $image->createLink() . '"';
+		} else {
+			// No size - original image
+			$image = $this->fromIdentifier($identifier);
+			$output .= ' src="' . $pathPrefix . '/' . $image->createLink() . '"';
+		}
+
+		return $output;
 	}
 
 	private static function fixName(string $name): string
