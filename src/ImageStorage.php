@@ -257,7 +257,7 @@ class ImageStorage
 		}
 
 		if (!$identifier) {
-			$isNoImage = false;
+			$isNoImage = true;
 			[$script, $file] = $this->getNoImage(false);
 		} else {
 			$script = ImageNameScript::fromIdentifier($identifier);
@@ -499,9 +499,10 @@ class ImageStorage
 			$size = $sizeOrSrcset;
 		}
 
-		// If no identifier, return empty
+		// If no identifier, use noimage
 		if (!$identifier) {
-			return ' src=""';
+			$image = $this->getNoImage(true);
+			return ' src="' . $pathPrefix . '/' . $image->createLink() . '"';
 		}
 
 		$output = '';
