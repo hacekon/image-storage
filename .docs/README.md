@@ -11,7 +11,6 @@ Image storage for Nette framework.
 	- [Storing image](#storing-image)
 	- [Transforming image](#transforming-image-resizing-cropping)
 	- [Quality settings](#quality-settings)
-	- [Srcset & responsive images](#srcset--responsive-images)
 	- [Deleting image](#deleting-image)
 	- [Friendly URL](#friendly-url)
 
@@ -141,32 +140,6 @@ $img = $this->imageStorage->fromIdentifier(['images/ed/kitty.jpg', '100x100', 'f
 > **Note:** PNG uses compression level, not quality. A lower value means less compression
 > (larger file, faster encoding), while a higher value means more compression (smaller file,
 > slower encoding). PNG compression is always lossless regardless of the level.
-
-## Srcset & responsive images
-
-Use the `n:img` attribute in Latte templates to generate responsive images with `srcset` and automatic WEBP conversion. The `width` and `height` attributes are added automatically to prevent layout shift (CLS).
-
-```latte
-{* Responsive image with srcset - width/height added automatically *}
-<img n:img="$image->getPath(), ['400', '800', '1200']" alt="Photo">
-
-{* Single size *}
-<img n:img="$image->getPath(), '800x600'" alt="Photo">
-
-{* Disable automatic width/height (6th argument) *}
-<img n:img="$image->getPath(), ['400', '800'], 'fit', null, true, false" alt="Photo">
-```
-
-| Argument | Type | Default | Description |
-|----------|------|---------|-------------|
-| path | `string` | — | Image identifier (required) |
-| srcset\|size | `array\|string` | — | Array of sizes or a single size string |
-| flag | `string` | `'fit'` | Resize mode: `fit`, `fill`, `exact`, `stretch`, `shrink_only` |
-| quality | `int` | auto | Quality override |
-| convertToWebp | `bool` | `true` | Convert JPG/PNG to WEBP |
-| addDimensions | `bool` | `true` | Add `width`/`height` from the largest srcset variant |
-
-See [SRCSET_USAGE.md](../SRCSET_USAGE.md) for full documentation and examples.
 
 ## Deleting image
 
