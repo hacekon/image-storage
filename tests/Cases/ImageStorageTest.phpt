@@ -202,3 +202,100 @@ Toolkit::test(static function (): void {
 
 	cleanupImages();
 });
+
+// createImageAttributes: width/height with srcset (default addDimensions=true)
+Toolkit::test(static function (): void {
+	$storage = createStorage();
+
+	$testImagePath = __DIR__ . '/__files__/images/ab/test.jpg';
+	@mkdir(dirname($testImagePath), 0777, true);
+	Image::fromBlank(800, 600)->save($testImagePath);
+
+	$output = $storage->createImageAttributes(
+		['images/ab/test.jpg', ['400x300', '800x600']],
+		'/base'
+	);
+
+	Assert::contains('width="800"', $output);
+	Assert::contains('height="600"', $output);
+
+	cleanupImages();
+});
+
+// createImageAttributes: no width/height when addDimensions=false via args[5]
+Toolkit::test(static function (): void {
+	$storage = createStorage();
+
+	$testImagePath = __DIR__ . '/__files__/images/ab/test.jpg';
+	@mkdir(dirname($testImagePath), 0777, true);
+	Image::fromBlank(800, 600)->save($testImagePath);
+
+	$output = $storage->createImageAttributes(
+		['images/ab/test.jpg', ['400x300', '800x600'], null, null, true, false],
+		'/base'
+	);
+
+	Assert::notContains('width=', $output);
+	Assert::notContains('height=', $output);
+
+	cleanupImages();
+});
+
+// createImageAttributes: no width/height when addDimensions=false via method param
+Toolkit::test(static function (): void {
+	$storage = createStorage();
+
+	$testImagePath = __DIR__ . '/__files__/images/ab/test.jpg';
+	@mkdir(dirname($testImagePath), 0777, true);
+	Image::fromBlank(800, 600)->save($testImagePath);
+
+	$output = $storage->createImageAttributes(
+		['images/ab/test.jpg', ['400x300', '800x600']],
+		'/base',
+		false
+	);
+
+	Assert::notContains('width=', $output);
+	Assert::notContains('height=', $output);
+
+	cleanupImages();
+});
+
+// createImageAttributes: width/height with single size
+Toolkit::test(static function (): void {
+	$storage = createStorage();
+
+	$testImagePath = __DIR__ . '/__files__/images/ab/test.jpg';
+	@mkdir(dirname($testImagePath), 0777, true);
+	Image::fromBlank(800, 600)->save($testImagePath);
+
+	$output = $storage->createImageAttributes(
+		['images/ab/test.jpg', '640x480'],
+		'/base'
+	);
+
+	Assert::contains('width="640"', $output);
+	Assert::contains('height="480"', $output);
+
+	cleanupImages();
+});
+
+// createImageAttributes: maximum variant is used for dimensions (not just last in array)
+Toolkit::test(static function (): void {
+	$storage = createStorage();
+
+	$testImagePath = __DIR__ . '/__files__/images/ab/test.jpg';
+	@mkdir(dirname($testImagePath), 0777, true);
+	Image::fromBlank(1200, 900)->save($testImagePath);
+
+	// Sizes in non-ascending order - max width is 1200
+	$output = $storage->createImageAttributes(
+		['images/ab/test.jpg', ['1200x900', '400x300', '800x600']],
+		'/base'
+	);
+
+	Assert::contains('width="1200"', $output);
+	Assert::contains('height="900"', $output);
+
+	cleanupImages();
+});

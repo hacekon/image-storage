@@ -469,9 +469,10 @@ class ImageStorage
 	 *
 	 * @param mixed $args Arguments from Latte template
 	 * @param string $pathPrefix Path prefix (usually $basePath or $baseUrl)
-	 * @return string HTML attributes string (e.g., ' src="..." srcset="..."')
+	 * @param bool $addDimensions Whether to automatically add width/height attributes calculated from the largest srcset variant (default: true)
+	 * @return string HTML attributes string (e.g., ' src="..." srcset="..." width="..." height="..."')
 	 */
-	public function createImageAttributes(mixed $args, string $pathPrefix): string
+	public function createImageAttributes(mixed $args, string $pathPrefix, bool $addDimensions = true): string
 	{
 		if (!is_array($args)) {
 			$args = [$args];
@@ -483,12 +484,13 @@ class ImageStorage
 		}
 
 		// Positional arguments: new format
-		// Args: [path, srcset|size, flag, quality, convertToWebp]
+		// Args: [path, srcset|size, flag, quality, convertToWebp, addDimensions]
 		$identifier = $args[0] ?? null;
 		$sizeOrSrcset = $args[1] ?? null;
 		$flag = $args[2] ?? null;
 		$quality = $args[3] ?? null;
 		$convertToWebp = $args[4] ?? true; // Default: convert to WEBP
+		$addDimensions = (bool) ($args[5] ?? $addDimensions); // Default: add width/height attributes
 
 		// Determine if $args[1] is srcset (array) or single size (string)
 		if (is_array($sizeOrSrcset)) {
@@ -521,10 +523,37 @@ class ImageStorage
 			if ($srcset) {
 				$output .= ' srcset="' . $srcset . '"';
 			}
+
+			// Add width/height from the largest srcset variant
+			if ($addDimensions) {
+				$normalizedSizes = $this->normalizeSrcsetSizes($identifier, $srcsetSizes);
+				$maxWidth = 0;
+				$maxHeight = 0;
+
+				foreach ($normalizedSizes as $ns) {
+					if (preg_match('/^(\d+)x(\d+)/', $ns, $m) && (int) $m[1] > $maxWidth) {
+						$maxWidth = (int) $m[1];
+						$maxHeight = (int) $m[2];
+					}
+				}
+
+				if ($maxWidth > 0 && $maxHeight > 0) {
+					$output .= ' width="' . $maxWidth . '" height="' . $maxHeight . '"';
+				}
+			}
 		} elseif ($size) {
 			// Single size - only src
 			$image = $this->fromIdentifier([$identifier, $size, $flag, $quality, $convertToWebp]);
 			$output .= ' src="' . $pathPrefix . '/' . $image->createLink() . '"';
+
+			// Add width/height from the single size
+			if ($addDimensions) {
+				$normalizedSize = $this->normalizeSize($identifier, $size);
+
+				if (preg_match('/^(\d+)x(\d+)/', $normalizedSize, $m)) {
+					$output .= ' width="' . $m[1] . '" height="' . $m[2] . '"';
+				}
+			}
 		} else {
 			// No size - original image
 			$image = $this->fromIdentifier($identifier);

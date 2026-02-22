@@ -5,7 +5,7 @@ Image Storage automaticky generuje `srcset` atribut pro responsive obrázky a p�
 ## 📝 Syntaxe
 
 ```latte
-n:img="path, srcset|size, flag, quality, convertToWebp"
+n:img="path, srcset|size, flag, quality, convertToWebp, addDimensions"
 ```
 
 ### Argumenty (v pořadí):
@@ -17,6 +17,7 @@ n:img="path, srcset|size, flag, quality, convertToWebp"
 | **3** | `flag` | `string` | `'fit'` | Způsob změny velikosti: `fit`, `fill`, `exact`, `stretch`, `shrink_only` |
 | **4** | `quality` | `int` | auto | Kvalita komprese (0-100 pro JPEG/WebP, 0-9 pro PNG) |
 | **5** | `convertToWebp` | `bool` | `true` | Automaticky převádí JPG/PNG do WEBP |
+| **6** | `addDimensions` | `bool` | `true` | Automaticky přidá atributy `width` a `height` podle největší varianty srcset |
 
 ---
 
@@ -34,6 +35,7 @@ n:img="path, srcset|size, flag, quality, convertToWebp"
      srcset="data/path/image.400x179.webp 400w,
              data/path/image.800x358.webp 800w,
              data/path/image.1200x537.webp 1200w"
+     width="1200" height="537"
      alt="Responsive obrázek">
 ```
 
@@ -52,7 +54,7 @@ n:img="path, srcset|size, flag, quality, convertToWebp"
 ### Kompletní (všechny parametry)
 
 ```latte
-<img n:img="$image->getPath(), ['400', '800', '1200'], 'fill', 85, true"
+<img n:img="$image->getPath(), ['400', '800', '1200'], 'fill', 85, true, true"
      alt="Obrázek">
 ```
 
@@ -130,6 +132,67 @@ Můžete kombinovat plný a zkrácený formát:
 - ✅ Lepší SEO (Core Web Vitals)
 - ✅ Podpora transparentnosti (jako PNG)
 - ✅ Podporováno všemi moderními prohlížeči
+
+---
+
+## 📐 Automatické atributy width a height
+
+Atributy `width` a `height` se přidávají **automaticky** a zabraňují tzv. [Cumulative Layout Shift (CLS)](https://web.dev/cls/) – posunu obsahu při načítání stránky.
+
+Hodnoty se vypočítají z **varianty s největší šířkou** v poli srcset, nebo z explicitně zadaného rozměru.
+
+### Zapnuté (výchozí)
+
+```latte
+<img n:img="$image->getPath(), ['400x300', '800x600', '1200x900']" alt="Obrázek">
+```
+
+**Vygeneruje:**
+```html
+<img src="data/path/image.1200x900.webp"
+     srcset="data/path/image.400x300.webp 400w,
+             data/path/image.800x600.webp 800w,
+             data/path/image.1200x900.webp 1200w"
+     width="1200" height="900"
+     alt="Obrázek">
+```
+
+### Vypnuté (6. parametr `false`)
+
+```latte
+<img n:img="$image->getPath(), ['400x300', '800x600'], 'fit', null, true, false" alt="Obrázek">
+```
+
+**Vygeneruje:**
+```html
+<img src="data/path/image.800x600.webp"
+     srcset="data/path/image.400x300.webp 400w, data/path/image.800x600.webp 800w"
+     alt="Obrázek">
+```
+
+### Jeden rozměr (bez srcset)
+
+Rozměry se přidají i při použití jednoho konkrétního rozměru:
+
+```latte
+<img n:img="$image->getPath(), '1200x675'" alt="Obrázek">
+```
+
+**Vygeneruje:**
+```html
+<img src="data/path/image.1200x675.webp" width="1200" height="675" alt="Obrázek">
+```
+
+### Maximum šířky, nikoliv pořadí
+
+Výsledné rozměry odpovídají variantě s **největší šířkou** – nezáleží na pořadí v poli:
+
+```latte
+{* Varianty nemusí být seřazeny - max šířka je 1200 *}
+<img n:img="$image->getPath(), ['1200x900', '400x300', '800x600']" alt="Obrázek">
+```
+
+**Vygeneruje:** `width="1200" height="900"`
 
 ---
 
@@ -215,7 +278,8 @@ Můžete kombinovat plný a zkrácený formát:
 - **Hlavní src:** Použije se největší rozměr (poslední v poli `srcset`)
 - **Width descriptor:** Automaticky se extrahuje z rozměru (např. `'400x300'` → `400w`)
 - **Stejné parametry:** Všechny obrázky v srcset používají stejný `flag` a `quality`
-- **WEBP konverze:** Výchozí chování, můžete vypnout pomocí `false` jako 5. parametr
+- **WEBP konverze:** Výchozí chování, vypnete pomocí `false` jako 5. parametr
+- **Atributy width/height:** Výchozí chování, vypnete pomocí `false` jako 6. parametr
 - **GIF a SVG:** Nepřevádějí se do WEBP (zachovávají originální formát)
 - **CSS sizes atribut:** Pokud potřebujete, přidejte ručně v HTML: `sizes="(min-width: 992px) 50vw, 100vw"`
 
@@ -224,7 +288,7 @@ Můžete kombinovat plný a zkrácený formát:
 ## 🎯 Rychlá reference
 
 ```latte
-{* Minimální - srcset s WEBP *}
+{* Minimální - srcset s WEBP + automatické width/height *}
 <img n:img="$image->getPath(), ['400', '800']">
 
 {* S flagem *}
@@ -236,8 +300,11 @@ Můžete kombinovat plný a zkrácený formát:
 {* Bez WEBP konverze *}
 <img n:img="$image->getPath(), ['400', '800'], 'fill', 85, false">
 
+{* Bez automatických rozměrů *}
+<img n:img="$image->getPath(), ['400', '800'], 'fill', 85, true, false">
+
 {* Kompletní (všechny parametry) *}
-<img n:img="$image->getPath(), ['400', '800', '1200'], 'fill', 85, true">
+<img n:img="$image->getPath(), ['400', '800', '1200'], 'fill', 85, true, true">
 
 {* Jeden rozměr (bez srcset) *}
 <img n:img="$image->getPath(), '800x600'">
