@@ -219,9 +219,14 @@ class ImageStorage
 		$data_file = implode('/', [$this->data_path, $identifier]);
 		$isNoImage = false;
 
+		// Return noimage if identifier is missing (e.g. null from optional chaining)
+		if (!$identifier) {
+			return $this->getNoImage(true);
+		}
+
 		// Return original image if no size is specified
 		if (count($args) === 1 || empty($args[1])) {
-			if (!file_exists($orig_file) || !$identifier) {
+			if (!file_exists($orig_file)) {
 				return $this->getNoImage(true);
 			}
 

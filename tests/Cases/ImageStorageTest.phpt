@@ -202,3 +202,15 @@ Toolkit::test(static function (): void {
 
 	cleanupImages();
 });
+
+Toolkit::test(static function (): void {
+	$storage = createStorage();
+
+	// Test null identifier with srcset array (e.g. {imgLink $page->getImage()?->getPath(), ['1920']})
+	// Should return noimage instead of throwing ImageResizeException
+	$image = $storage->fromIdentifier([null, ['1920']]);
+	Assert::type(\Contributte\ImageStorage\Image::class, $image);
+
+	$image = $storage->fromIdentifier([null, '800x600']);
+	Assert::type(\Contributte\ImageStorage\Image::class, $image);
+});
