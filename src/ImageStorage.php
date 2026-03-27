@@ -187,6 +187,11 @@ class ImageStorage
 				$identifier = $identifier[0] ?? null;
 			}
 
+			// If size is a srcset array (e.g. ['1920']), use the last (largest) size
+			if (is_array($size)) {
+				$size = end($size) ?: null;
+			}
+
 			// Convert to positional array format for backward compatibility
 			$args = [$identifier, $size, $flag, $qualityOverride, $convertToWebp];
 		} else {
@@ -199,6 +204,11 @@ class ImageStorage
 			// Ensure identifier is a string, not an array
 			if (is_array($identifier)) {
 				$identifier = $identifier[0] ?? null;
+			}
+
+			// If size is a srcset array (e.g. ['1920']), use the last (largest) size
+			if (is_array($size)) {
+				$size = end($size) ?: null;
 			}
 
 			// Standardize to consistent positional array format
