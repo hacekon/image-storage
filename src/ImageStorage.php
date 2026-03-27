@@ -233,6 +233,11 @@ class ImageStorage
 			return new Image($this->friendly_url, $this->data_dir, $this->data_path, $identifier);
 		}
 
+		// Normalize width-only size (e.g. '1920') to 'WIDTHxHEIGHT' using aspect ratio
+		if ($identifier && is_string($args[1]) && strpos($args[1], 'x') === false && is_numeric($args[1])) {
+			$args[1] = $this->normalizeSize($identifier, $args[1]);
+		}
+
 		preg_match('/(\d+)?x(\d+)?(crop(\d+)x(\d+)x(\d+)x(\d+))?/', $args[1], $matches);
 
 		// Validate size format
