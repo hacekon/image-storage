@@ -233,8 +233,8 @@ class ImageStorage
 			return new Image($this->friendly_url, $this->data_dir, $this->data_path, $identifier);
 		}
 
-		// Normalize width-only size (e.g. '1920') to 'WIDTHxHEIGHT' using aspect ratio
-		if ($identifier && is_string($args[1]) && strpos($args[1], 'x') === false && is_numeric($args[1])) {
+		// Normalize width-only size (e.g. '1920' or 1920) to 'WIDTHxHEIGHT' using aspect ratio
+		if ($identifier && (is_int($args[1]) || (is_string($args[1]) && strpos($args[1], 'x') === false)) && is_numeric($args[1])) {
 			$args[1] = $this->normalizeSize($identifier, $args[1]);
 		}
 
@@ -434,8 +434,10 @@ class ImageStorage
 	 * @param string $size Size in format 'WIDTHxHEIGHT' or just 'WIDTH'
 	 * @return string Normalized size with both width and height (e.g., '800x600')
 	 */
-	private function normalizeSize(string $identifier, string $size): string
+	private function normalizeSize(string $identifier, int|string $size): string
 	{
+		$size = (string) $size;
+
 		// If size contains 'x', it's already in WIDTHxHEIGHT format
 		if (strpos($size, 'x') !== false) {
 			return $size;
@@ -466,7 +468,7 @@ class ImageStorage
 	 * Normalize srcset sizes - calculate height for width-only values based on original image aspect ratio.
 	 *
 	 * @param string $identifier Image identifier (path)
-	 * @param array<string> $sizes Array of sizes (e.g., ['400x300', '800', '1200'])
+	 * @param array<int|string> $sizes Array of sizes (e.g., ['400x300', '800', 1200])
 	 * @return array<string> Normalized sizes with both width and height (e.g., ['400x300', '800x600', '1200x900'])
 	 */
 	private function normalizeSrcsetSizes(string $identifier, array $sizes): array
