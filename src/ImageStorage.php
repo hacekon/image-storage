@@ -290,6 +290,15 @@ class ImageStorage
 			}
 		}
 
+		// SVG files should not be resized or converted - return original as-is
+		if (!$isNoImage && strtolower($script->extension) === 'svg') {
+			if (!file_exists($data_file)) {
+				@mkdir(dirname($data_file), $this->mask, true);
+				@copy($orig_file, $data_file);
+			}
+			return new Image($this->friendly_url, $this->data_dir, $this->data_path, $identifier);
+		}
+
 		$script->setSize($size);
 		$script->setCrop($crop);
 		$script->setFlag($flag);
